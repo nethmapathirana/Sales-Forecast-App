@@ -20,15 +20,15 @@ st.write(
 #    https://drive.google.com/file/d/FILE_ID/view?usp=sharing
 # 4. Replace FILE_ID below:
 
-GOOGLE_DRIVE_FILE_ID = "1h10O11yLxIVxPwVEN2DDexoqlF-9Lpml"
-download_url = f"https://drive.google.com/uc?id={GOOGLE_DRIVE_FILE_ID}"
+#GOOGLE_DRIVE_FILE_ID = "1h10O11yLxIVxPwVEN2DDexoqlF-9Lpml"
+download_url = "https://drive.google.com/uc?id=1A2UR7sWb9WJKgC-FC7nd6ZUKG2vUt8rr"
 
 @st.cache_data(show_spinner=True)
 def load_data(url):
     try:
-        return pd.read_excel(url)
+        return pd.read_csv(url)
     except Exception as e:
-        st.error(f"Failed to load Excel: {e}")
+        st.error(f"Failed to load CSV: {e}")
         return None
 
 df = load_data(download_url)
@@ -130,3 +130,4 @@ else:
     st.info("Loading sales data from Google Drive...")
 
 st.caption("Built with ❤️ using Streamlit and XGBoost.")
+
