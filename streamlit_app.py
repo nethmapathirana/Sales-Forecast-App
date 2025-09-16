@@ -4,72 +4,63 @@ import numpy as np
 from xgboost import XGBRegressor
 
 st.set_page_config(page_title="Sales Forecast Dashboard", layout="wide")
-st.title("🧮 Sales Forecasting Dashboard")
+st.markdown("""
+    <style>
+    .big-font {font-size:30px !important;}
+    .center {text-align: center;}
+    .blue-box {background-color: #E3F2FD; padding: 20px; border-radius: 15px;}
+    .subsection {font-size:22px; color:#1565C0; font-weight:bold;}
+    </style>
+""", unsafe_allow_html=True)
 
-st.write(
-    """
-    Sales data is loaded from a file on Google Drive.
-    The app will show trends and predict sales for the next month using Machine Learning (XGBoost).
-    """
-)
+st.markdown('<p class="big-font center"><b>📈 Sales Forecasting Dashboard</b></p>', unsafe_allow_html=True)
 
-# -- CONFIGURE GOOGLE DRIVE FILE --
-# 1. Upload Excel to Google Drive
-# 2. Right-click > "Share" > "Anyone with the link"
-# 3. Copy the share link, for example:
-#    https://drive.google.com/file/d/FILE_ID/view?usp=sharing
-# 4. Replace FILE_ID below:
+st.markdown("""
+<div class='center blue-box'>
+Upload your <b>Sales Data Excel file</b> (same format as your dataset).<br>
+See sales trends and <b>predict next month</b> by Product and Territory!
+</div>
+""", unsafe_allow_html=True)
+st.write("")
 
-#GOOGLE_DRIVE_FILE_ID = "1h10O11yLxIVxPwVEN2DDexoqlF-9Lpml"
-download_url = "https://drive.google.com/uc?id=1h10O11yLxIVxPwVEN2DDexoqlF-9Lpml"
+uploaded_file = st.file_uploader("Upload sales data (.xlsx)", type=["xlsx"])
 
-@st.cache_data(show_spinner=True)
-def load_data(url):
-    try:
-        return pd.read_csv(url)
-    except Exception as e:
-        st.error(f"Failed to load CSV: {e}")
-        return None
+if uploaded_file:
+    df = pd.read_excel(uploaded_file)
+    st.write("**First 5 rows:**")
+    st.dataframe(df.head())
 
-df = load_data(download_url)
-st.write("CSV columns:", df.columns.tolist())
-
-if df is not None:
     if 'DATE' not in df.columns or 'SALES AMT' not in df.columns:
-        st.error("Excel must have 'DATE' and 'SALES AMT' columns.")
-    else:
-        df['DATE'] = pd.to_datetime(df['DATE'])
-        st.write("First 5 rows:", df.head())
-        st.info(f"Rows: {len(df):,}, Columns: {df.columns.tolist()}")
+        st.error("File must have columns 'DATE' and 'SALES AMT'")
+        st.stop()
+    df['DATE'] = pd.to_datetime(df['DATE'])
 
-        # --- TOTAL SALES FORECAST ---
-        monthly = df.groupby(df['DATE'].dt.to_period('M'))['SALES AMT'].sum().reset_index()
-        monthly['DATE'] = monthly['DATE'].dt.to_timestamp()
-        monthly['month'] = monthly['DATE'].dt.month
-        monthly['lag1'] = monthly['SALES AMT'].shift(1)
-        monthly['rolling3'] = monthly['SALES AMT'].shift(1).rolling(3).mean()
-        monthly = monthly.dropna()
+    st.markdown('<div class="subsection">Overall Monthly Sales Trend & Forecast</div>', unsafe_allow_html=True)
+    monthly = df.groupby(df['DATE'].dt.to_period('M'))['SALES AMT'].sum().reset_index()
+    monthly['DATE'] = monthly['DATE'].dt.to_timestamp()
+    monthly['month'] = monthly['DATE'].dt.month
+    monthly['lag1'] = monthly['SALES AMT'].shift(1)
+    monthly['rolling3'] = monthly['SALES AMT'].shift(1).rolling(3).mean()
+    monthly = monthly.dropna()
+    X = monthly.drop(['DATE','SALES AMT'], axis=1)
+    y = monthly['SALES AMT']
+    model = XGBRegressor(n_estimators=100, max_depth=3, random_state=42)
+    model.fit(X[:-1], y[:-1])
+    overall_forecast = model.predict(X[-1:])[0]
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric("Latest Actual Month", f"{y.iloc[-1]:,.0f}")
+    with c2:
+        st.metric("Next Month Forecast", f"{overall_forecast:,.0f}")
 
-        X = monthly.drop(['DATE','SALES AMT'], axis=1)
-        y = monthly['SALES AMT']
-        model = XGBRegressor(n_estimators=100, max_depth=3)
-        model.fit(X[:-1], y[:-1])
-        next_pred = model.predict(X[-1:])[0]
+    st.line_chart(monthly.set_index('DATE')['SALES AMT'])
 
-        st.subheader("Total Sales - Historical & Forecast")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.metric("Latest Actual Month", f"{y.iloc[-1]:,.0f}")
-        with c2:
-            st.metric("Next Month Forecast", f"{next_pred:,.0f}")
-
-        st.line_chart(monthly.set_index('DATE')['SALES AMT'])
-
-        # --- PRODUCT-WISE FORECAST ---
-        st.subheader("Product-wise Sales Prediction")
+    # ---- PRODUCT-WISE ----
+    st.markdown('<div class="subsection">Product-wise Forecast (Next Month)</div>', unsafe_allow_html=True)
+    with st.expander("Show/Hide Product-wise Forecast Table"):
+        prod_result = []
         if 'PRODUCT NAME' in df.columns:
             products = df['PRODUCT NAME'].unique()
-            prod_result = []
             for prod in products:
                 dfp = df[df['PRODUCT NAME'] == prod].copy()
                 if len(dfp) < 7:
@@ -84,22 +75,24 @@ if df is not None:
                     continue
                 Xp = mprod.drop(['DATE','SALES AMT'], axis=1)
                 yp = mprod['SALES AMT']
-                modelp = XGBRegressor(n_estimators=50, max_depth=3)
+                modelp = XGBRegressor(n_estimators=50, max_depth=3, random_state=42)
                 modelp.fit(Xp[:-1], yp[:-1])
-                next_predp = modelp.predict(Xp[-1:])[0]
-                prod_result.append({'Product': prod, 'Forecast_Next_Month': next_predp, 'Last_Actual_Month': yp.iloc[-1]})
-
+                predp = modelp.predict(Xp[-1:])[0]
+                prod_result.append({'Product': prod, 'Forecast_Next_Month': predp, 'Last_Actual_Month': yp.iloc[-1]})
             if prod_result:
                 prod_df = pd.DataFrame(prod_result).sort_values('Forecast_Next_Month', ascending=False)
                 st.dataframe(prod_df.style.format({'Forecast_Next_Month': '{:,.0f}', 'Last_Actual_Month': '{:,.0f}'}), height=500)
             else:
-                st.warning("Not enough history for product-wise forecast.")
+                st.info("Not enough history for product-wise forecast.")
+        else:
+            st.info("No 'PRODUCT NAME' column in the file.")
 
-        # --- TERRITORY-WISE FORECAST ---
-        st.subheader("Territory-wise Sales Prediction")
+    # ---- TERRITORY-WISE ----
+    st.markdown('<div class="subsection">Territory-wise Forecast (Next Month)</div>', unsafe_allow_html=True)
+    with st.expander("Show/Hide Territory-wise Forecast Table"):
+        terr_result = []
         if 'TERRITORY' in df.columns:
             territories = df['TERRITORY'].unique()
-            terr_result = []
             for terr in territories:
                 dft = df[df['TERRITORY'] == terr].copy()
                 if len(dft) < 7:
@@ -114,24 +107,36 @@ if df is not None:
                     continue
                 Xt = mterr.drop(['DATE','SALES AMT'], axis=1)
                 yt = mterr['SALES AMT']
-                modelt = XGBRegressor(n_estimators=50, max_depth=3)
+                modelt = XGBRegressor(n_estimators=50, max_depth=3, random_state=42)
                 modelt.fit(Xt[:-1], yt[:-1])
-                next_predt = modelt.predict(Xt[-1:])[0]
-                terr_result.append({'Territory': terr, 'Forecast_Next_Month': next_predt, 'Last_Actual_Month': yt.iloc[-1]})
-
+                predt = modelt.predict(Xt[-1:])[0]
+                terr_result.append({'Territory': terr, 'Forecast_Next_Month': predt, 'Last_Actual_Month': yt.iloc[-1]})
             if terr_result:
                 terr_df = pd.DataFrame(terr_result).sort_values('Forecast_Next_Month', ascending=False)
                 st.dataframe(terr_df.style.format({'Forecast_Next_Month': '{:,.0f}', 'Last_Actual_Month': '{:,.0f}'}), height=500)
             else:
-                st.warning("Not enough history for territory-wise forecast.")
+                st.info("Not enough history for territory-wise forecast.")
         else:
-            st.info("No 'TERRITORY' column in the data.")
+            st.info("No 'TERRITORY' column in the file.")
 
-        st.success("Update the file in Google Drive each month and the dashboard will update automatically.")
+    # --- Territory Actuals Chart ---
+    if 'TERRITORY' in df.columns:
+        st.markdown('<div class="subsection">Territory-wise Current Month Actual Sales</div>', unsafe_allow_html=True)
+        cur_month = df['DATE'].dt.to_period('M').max()
+        latest = df[df['DATE'].dt.to_period('M') == cur_month]
+        territory_sales = latest.groupby('TERRITORY')['SALES AMT'].sum().sort_values(ascending=False)
+        st.bar_chart(territory_sales)
+
+    # --- Download Option (Product & Territory) ---
+    st.markdown('<div class="subsection">Download Forecasts</div>', unsafe_allow_html=True)
+    c3, c4 = st.columns(2)
+    if 'prod_df' in locals():
+        c3.download_button("Download Product Forecasts", prod_df.to_csv(index=False), "product_forecast.csv", "text/csv")
+    if 'terr_df' in locals():
+        c4.download_button("Download Territory Forecasts", terr_df.to_csv(index=False), "territory_forecast.csv", "text/csv")
+
+    st.success("Upload new data each month for updated forecasts. Built for easy business use!")
 else:
-    st.info("Loading sales data from Google Drive...")
+    st.info("Please upload your Excel sales data to begin.")
 
-st.caption("Built with ❤️ using Streamlit and XGBoost.")
-
-
-
+st.caption("Built with ❤️ by Nethma | Powered by Streamlit & XGBoost")
