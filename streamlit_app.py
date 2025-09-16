@@ -21,7 +21,7 @@ st.write(
 # 4. Replace FILE_ID below:
 
 #GOOGLE_DRIVE_FILE_ID = "1h10O11yLxIVxPwVEN2DDexoqlF-9Lpml"
-download_url = "https://drive.google.com/uc?id=1A2UR7sWb9WJKgC-FC7nd6ZUKG2vUt8rr"
+download_url = "https://drive.google.com/uc?id=1h10O11yLxIVxPwVEN2DDexoqlF-9Lpml"
 
 @st.cache_data(show_spinner=True)
 def load_data(url):
@@ -132,5 +132,6 @@ else:
     st.info("Loading sales data from Google Drive...")
 
 st.caption("Built with ❤️ using Streamlit and XGBoost.")
+
 
 
