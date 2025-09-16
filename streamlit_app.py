@@ -32,6 +32,8 @@ def load_data(url):
         return None
 
 df = load_data(download_url)
+st.write("CSV columns:", df.columns.tolist())
+
 if df is not None:
     if 'DATE' not in df.columns or 'SALES AMT' not in df.columns:
         st.error("Excel must have 'DATE' and 'SALES AMT' columns.")
@@ -130,4 +132,5 @@ else:
     st.info("Loading sales data from Google Drive...")
 
 st.caption("Built with ❤️ using Streamlit and XGBoost.")
+
 
