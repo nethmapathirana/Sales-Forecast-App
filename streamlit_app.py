@@ -81,13 +81,15 @@ if uploaded_file:
             st.warning("Not enough history for product-wise forecast.")
 
         # Optionally, group by territory
+        '''
         if 'TERRITORY' in df.columns:
             st.subheader("Territory-wise Sales (Current Month)")
             territory_sales = df.groupby('TERRITORY')['SALES AMT'].sum().sort_values(ascending=False)
-            st.bar_chart(territory_sales)
+            st.bar_chart(territory_sales)'''
 
         st.success("You can upload new data at the start of every month and see updated predictions!")
 else:
     st.info("Please upload your Excel sales data file to begin.")
 
 st.caption("Built with ❤️ using Streamlit and XGBoost.")
+
